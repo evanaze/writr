@@ -2,8 +2,10 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -36,10 +38,18 @@ func openDB() (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS word_counts (
+		date TEXT PRIMARY KEY,
+		count INTEGER NOT NULL
+	)`)
+	if err != nil {
+		return nil, err
+	}
 	_, err = db.Exec(`INSERT OR IGNORE INTO settings (key, value) VALUES ('word_goal', '500')`)
 	if err != nil {
 		return nil, err
 	}
+
 	return db, nil
 }
 
@@ -55,4 +65,70 @@ func getGoal(db *sql.DB) (string, error) {
 func setGoal(db *sql.DB, goal string) error {
 	_, err := db.Exec(`INSERT OR REPLACE INTO settings (key, value) VALUES ('word_goal', ?)`, goal)
 	return err
+}
+
+func recordWordCount(db *sql.DB, count int) error {
+	date := time.Now().Format("2006-01-02")
+	_, err := db.Exec(`INSERT INTO word_counts (date, count) VALUES (?, ?)
+		ON CONFLICT(date) DO UPDATE SET count = MAX(count, excluded.count)`, date, count)
+	return err
+}
+
+func getWordCounts(db *sql.DB, year int, month int) ([]struct {
+	Date  string
+	Count int
+}, error) {
+	query := `SELECT date, count FROM word_counts WHERE strftime('%Y', date) = ? AND strftime('%m', date) = ?`
+	rows, err := db.Query(query, fmt.Sprintf("%d", year), fmt.Sprintf("%02d", month))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []struct {
+		Date  string
+		Count int
+	}
+	for rows.Next() {
+		var date string
+		var count int
+		if err := rows.Scan(&date, &count); err != nil {
+			return nil, err
+		}
+		results = append(results, struct {
+			Date  string
+			Count int
+		}{date, count})
+	}
+	return results, nil
+}
+
+func getStreak(db *sql.DB, goal int) (int, error) {
+	rows, err := db.Query(`SELECT DISTINCT date FROM word_counts WHERE count >= ?`, goal)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	met := make(map[string]bool)
+	for rows.Next() {
+		var date string
+		if err := rows.Scan(&date); err != nil {
+			return 0, err
+		}
+		met[date] = true
+	}
+
+	// Count consecutive days ending today, or yesterday if today not met yet.
+	today := time.Now()
+	cur := today
+	if !met[cur.Format("2006-01-02")] {
+		cur = cur.AddDate(0, 0, -1)
+	}
+	streak := 0
+	for met[cur.Format("2006-01-02")] {
+		streak++
+		cur = cur.AddDate(0, 0, -1)
+	}
+	return streak, nil
 }

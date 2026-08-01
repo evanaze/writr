@@ -26,6 +26,93 @@ const previewToggle = document.getElementById('preview-toggle');
 const deleteFileBtn = document.getElementById('delete-file-btn');
 const newFileBtn = document.getElementById('new-file-btn');
 
+// Calendar widget refs
+const streakCounter = document.getElementById('streak-counter');
+const calTitle = document.getElementById('cal-title');
+const calGrid = document.getElementById('calendar-grid');
+const calPrev = document.getElementById('cal-prev');
+const calNext = document.getElementById('cal-next');
+
+// Calendar state (displayed month)
+let calYear, calMonth;
+let metDays = {};
+
+// ── Calendar ──
+const DAY_HEADERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+async function loadCalendar() {
+  const now = new Date();
+  if (calYear === undefined) {
+    calYear = now.getFullYear();
+    calMonth = now.getMonth() + 1; // 1-12
+  }
+  try {
+    const data = await api('GET', `/api/calendar?year=${calYear}&month=${calMonth}`);
+    metDays = data.days || {};
+    streakCounter.textContent = `🔥 ${data.streak}-day streak`;
+    renderCalendar();
+  } catch (e) {
+    console.error('Failed to load calendar', e);
+  }
+}
+
+function renderCalendar() {
+  calTitle.textContent = MONTH_NAMES[calMonth - 1] + ' ' + calYear;
+  calGrid.innerHTML = '';
+
+  // Day-of-week headers (Sunday = 0)
+  DAY_HEADERS.forEach(h => {
+    const el = document.createElement('div');
+    el.className = 'cal-day-head';
+    el.textContent = h;
+    calGrid.appendChild(el);
+  });
+
+  const first = new Date(calYear, calMonth - 1, 1);
+  const daysInMonth = new Date(calYear, calMonth, 0).getDate();
+  const startDow = first.getDay(); // 0=Sun
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const thisMonth = today.getFullYear() === calYear && (today.getMonth()+1) === calMonth;
+
+  // Leading empty cells
+  for (let i = 0; i < startDow; i++) {
+    const el = document.createElement('div');
+    el.className = 'cal-day empty';
+    calGrid.appendChild(el);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const el = document.createElement('div');
+    el.className = 'cal-day';
+    const dateStr = `${calYear}-${String(calMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    el.textContent = d;
+    if (metDays[dateStr]) {
+      el.classList.add('met');
+    }
+    if (thisMonth && dateStr === todayStr) {
+      el.classList.add('today');
+    }
+    calGrid.appendChild(el);
+  }
+}
+
+function prevMonth() {
+  calMonth--;
+  if (calMonth < 1) { calMonth = 12; calYear--; }
+  loadCalendar();
+}
+
+function nextMonth() {
+  calMonth++;
+  if (calMonth > 12) { calMonth = 1; calYear++; }
+  loadCalendar();
+}
+
+calPrev.addEventListener('click', prevMonth);
+calNext.addEventListener('click', nextMonth);
+
 // ── Init ──
 async function init() {
   const params = new URLSearchParams(window.location.search);
@@ -38,6 +125,7 @@ async function init() {
 
   await loadGoal();
   await loadTree();
+  await loadCalendar();
 
   if (fileParam) {
     openFile(fileParam);
@@ -184,6 +272,7 @@ function highlightActiveFile() {
 function saveFile() {
   if (!currentFile) return;
   api('PUT', '/api/file?path=' + encodeURIComponent(currentFile), { content: editor.value })
+    .then(() => loadCalendar())
     .catch(e => console.error('Failed to save', e));
 }
 

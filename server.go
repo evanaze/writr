@@ -53,7 +53,7 @@ func startServer(root string, db *sql.DB, openFile string, sidebarOpen bool) err
 		case "GET":
 			apiFileGet(w, r, root)
 		case "PUT":
-			apiFilePut(w, r, root)
+			apiFilePut(w, r, root, db)
 		case "POST":
 			apiFilePost(w, r, root)
 		case "DELETE":
@@ -78,6 +78,13 @@ func startServer(root string, db *sql.DB, openFile string, sidebarOpen bool) err
 		default:
 			http.Error(w, "method not allowed", 405)
 		}
+	})
+	mux.HandleFunc("/api/calendar", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			http.Error(w, "method not allowed", 405)
+			return
+		}
+		apiCalendarGet(w, r, db)
 	})
 
 	// Serve embedded web assets (index.html, style.css, app.js)

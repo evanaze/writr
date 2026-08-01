@@ -8,8 +8,54 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 )
+func apiCalendarGet(w http.ResponseWriter, r *http.Request, db *sql.DB) {
+	year, _ := strconv.Atoi(r.URL.Query().Get("year"))
+	month, _ := strconv.Atoi(r.URL.Query().Get("month"))
+	if month < 1 || month > 12 {
+		month = int(time.Now().Month())
+	}
+	if year == 0 {
+		year = time.Now().Year()
+	}
+
+	counts, err := getWordCounts(db, year, month)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	goal, err := getGoal(db)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	goalInt, _ := strconv.Atoi(goal)
+
+	days := make(map[string]bool)
+	for _, c := range counts {
+		if c.Count >= goalInt {
+			days[c.Date] = true
+		}
+	}
+	streak, err := getStreak(db, goalInt)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"year":   year,
+		"month":  month,
+		"days":   days,
+		"streak": streak,
+	})
+}
+
+
 
 type FileNode struct {
 	Name     string     `json:"name"`
@@ -97,7 +143,7 @@ func apiFileGet(w http.ResponseWriter, r *http.Request, root string) {
 	json.NewEncoder(w).Encode(map[string]string{"content": string(data)})
 }
 
-func apiFilePut(w http.ResponseWriter, r *http.Request, root string) {
+func apiFilePut(w http.ResponseWriter, r *http.Request, root string, db *sql.DB) {
 	relPath := r.URL.Query().Get("path")
 	if relPath == "" {
 		http.Error(w, "missing path", 400)
@@ -130,6 +176,15 @@ func apiFilePut(w http.ResponseWriter, r *http.Request, root string) {
 	if err := os.WriteFile(fullPath, []byte(req.Content), 0644); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
+	}
+	// Record word count for the daily calendar widget
+	if strings.HasSuffix(fullPath, ".md") && db != nil {
+		text := strings.TrimSpace(req.Content)
+		count := 0
+		if text != "" {
+			count = len(strings.Fields(text))
+		}
+		recordWordCount(db, count)
 	}
 	w.WriteHeader(200)
 }
