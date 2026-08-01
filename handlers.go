@@ -114,12 +114,19 @@ func apiFilePut(w http.ResponseWriter, r *http.Request, root string) {
 		http.Error(w, err.Error(), 400)
 		return
 	}
+	var req struct {
+		Content string `json:"content"`
+	}
+	if err := json.Unmarshal(body, &req); err != nil {
+		http.Error(w, "invalid json", 400)
+		return
+	}
 	dir := filepath.Dir(fullPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	if err := os.WriteFile(fullPath, body, 0644); err != nil {
+	if err := os.WriteFile(fullPath, []byte(req.Content), 0644); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
