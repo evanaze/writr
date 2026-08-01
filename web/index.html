@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>writr</title>
+<link rel="stylesheet" href="/style.css">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+
+<div id="sidebar" class="sidebar">
+  <div class="sidebar-header">
+    <span class="sidebar-title">writr</span>
+    <button id="sidebar-toggle" class="icon-btn" title="Close sidebar">×</button>
+  </div>
+  <div id="tree" class="tree"></div>
+  <div class="sidebar-footer">
+    <button id="new-file-btn" class="btn">+ New File</button>
+  </div>
+</div>
+
+<div id="main" class="main">
+  <div id="main-header" class="main-header">
+    <button id="sidebar-open-btn" class="icon-btn" title="Toggle sidebar">☰</button>
+    <span id="current-file" class="current-file"></span>
+    <div class="header-actions">
+      <button id="preview-toggle" class="btn" title="Toggle preview">◐</button>
+      <button id="delete-file-btn" class="btn danger" title="Delete file">🗑</button>
+    </div>
+  </div>
+
+  <div id="editor-area" class="editor-area">
+    <div id="placeholder" class="placeholder">Select a document and begin typing.</div>
+    <div id="editor-wrapper" class="editor-wrapper hidden">
+      <textarea id="editor" class="editor" placeholder="Start writing…"></textarea>
+      <div id="preview" class="preview hidden"></div>
+    </div>
+  </div>
+
+  <div id="progress-bar-container" class="progress-bar-container">
+    <div class="progress-info">
+      <span id="word-count">0</span> / <span id="goal-display">500</span> words
+    </div>
+    <div id="progress-track" class="progress-track" title="Click to set word goal">
+      <div id="progress-fill" class="progress-fill"></div>
+    </div>
+    <div id="goal-setter" class="goal-setter hidden">
+      <input type="number" id="goal-input" min="1" placeholder="Word goal">
+      <button id="goal-save" class="btn">Set</button>
+    </div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
