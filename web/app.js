@@ -244,9 +244,19 @@ function updateProgress() {
   else if (count >= wordGoal * 1.1) progressFill.classList.add('over');
 }
 
+let mediumZoomInstance = null;
+
 function updatePreview() {
   if (previewMode || splitMode) {
     preview.innerHTML = marked.parse(editor.value) || '';
+    // Re-attach medium-zoom to preview images
+    if (typeof mediumZoom !== 'undefined') {
+      if (mediumZoomInstance) mediumZoomInstance.detach();
+      const imgs = preview.querySelectorAll('img');
+      if (imgs.length > 0) {
+        mediumZoomInstance = mediumZoom(imgs, { background: 'rgba(0,0,0,0.85)' });
+      }
+    }
   }
 }
 
@@ -339,6 +349,39 @@ editor.addEventListener('drop', async (e) => {
     } catch (e) {
       console.error('Upload failed', e);
     }
+  }
+});
+
+// ── Clipboard paste images ──
+editor.addEventListener('paste', async (e) => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (!item.type.startsWith('image/')) continue;
+    e.preventDefault();
+    const file = item.getAsFile();
+    if (!file) continue;
+    try {
+      const form = new FormData();
+      // Generate a reasonable filename with correct extension
+      const ext = item.type.split('/')[1] || 'png';
+      form.append('file', file, 'pasted-' + Date.now() + '.' + ext);
+      const data = await api('POST', '/api/upload?dir=' + encodeURIComponent(currentDir), form);
+      const start = editor.selectionStart;
+      const end = editor.selectionEnd;
+      const before = editor.value.substring(0, start);
+      const after = editor.value.substring(end);
+      const insert = (before.length > 0 && !before.endsWith('\n') ? '\n' : '') + data.markdown + '\n';
+      editor.value = before + insert + after;
+      editor.selectionStart = editor.selectionEnd = start + insert.length;
+      updateWordCount();
+      updatePreview();
+      saveFile();
+      loadTree();
+    } catch (err) {
+      console.error('Paste upload failed', err);
+    }
+    break;
   }
 });
 

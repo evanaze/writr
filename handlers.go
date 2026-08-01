@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -221,9 +222,11 @@ func apiUpload(w http.ResponseWriter, r *http.Request, root string) {
 	}
 
 	relRef, _ := filepath.Rel(root, dstPath)
+	// Percent-encode the URL so filenames with spaces etc. are valid markdown
+	encRef := (&url.URL{Path: filepath.ToSlash(relRef)}).String()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
-		"markdown": "![" + strings.TrimSuffix(filename, filepath.Ext(filename)) + "](" + relRef + ")",
+		"markdown": "![" + strings.TrimSuffix(filename, filepath.Ext(filename)) + "](" + encRef + ")",
 	})
 }
 
