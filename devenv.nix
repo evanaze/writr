@@ -1,6 +1,7 @@
 {...}: {
   # https://devenv.sh/languages/
   languages.go.enable = true;
+  languages.javascript.npm.enable = true;
 
   # https://devenv.sh/scripts/
   scripts.build.exec = "go build -o writr .";
