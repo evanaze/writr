@@ -56,7 +56,6 @@ func apiCalendarGet(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 }
 
 
-
 type FileNode struct {
 	Name     string     `json:"name"`
 	Path     string     `json:"path"`
