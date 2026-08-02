@@ -324,6 +324,11 @@ function countWords(text) {
   return t ? t.split(/\s+/).length : 0;
 }
 
+function stripFrontmatter(text) {
+  const m = text.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/);
+  return m ? text.slice(m[0].length) : text;
+}
+
 function newWordCount() {
   return Math.max(0, countWords(editor.value) - fileBaselineCount);
 }
@@ -335,8 +340,7 @@ function updateWordCount() {
 }
 
 function updateProgress() {
-  const text = editor.value.trim();
-  const count = text ? text.split(/\s+/).length : 0;
+  const count = newWordCount();
   const pct = Math.min(100, Math.round((count / wordGoal) * 100));
   progressFill.style.width = pct + '%';
   progressFill.className = 'progress-fill';
@@ -348,7 +352,7 @@ let mediumZoomInstance = null;
 
 function updatePreview() {
   if (previewMode || splitMode) {
-    preview.innerHTML = marked.parse(editor.value) || '';
+    preview.innerHTML = marked.parse(stripFrontmatter(editor.value)) || '';
     // Re-attach medium-zoom to preview images
     if (typeof mediumZoom !== 'undefined') {
       if (mediumZoomInstance) mediumZoomInstance.detach();
