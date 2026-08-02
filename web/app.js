@@ -5,6 +5,7 @@ let wordGoal = 500;
 let previewMode = false;
 let splitMode = false;
 let saveTimer = null;
+let fileBaselineCount = 0;
 
 // ── DOM refs ──
 const sidebar = document.getElementById('sidebar');
@@ -239,6 +240,7 @@ async function openFile(relPath) {
     currentFile = relPath;
     currentDir = relPath.includes('/') ? relPath.substring(0, relPath.lastIndexOf('/')) : '.';
     editor.value = data.content;
+    fileBaselineCount = countWords(data.content);
     placeholder.classList.add('hidden');
     editorWrapper.classList.remove('hidden');
     currentFileEl.textContent = relPath;
@@ -284,6 +286,7 @@ async function deleteFile() {
     currentFile = null;
     currentDir = '.';
     editor.value = '';
+    fileBaselineCount = 0;
     placeholder.classList.remove('hidden');
     editorWrapper.classList.add('hidden');
     currentFileEl.textContent = '';
@@ -316,9 +319,17 @@ editor.addEventListener('input', () => {
   saveTimer = setTimeout(saveFile, 500);
 });
 
+function countWords(text) {
+  const t = text.trim();
+  return t ? t.split(/\s+/).length : 0;
+}
+
+function newWordCount() {
+  return Math.max(0, countWords(editor.value) - fileBaselineCount);
+}
+
 function updateWordCount() {
-  const text = editor.value.trim();
-  const count = text ? text.split(/\s+/).length : 0;
+  const count = newWordCount();
   wordCountEl.textContent = count;
   updateProgress();
 }
