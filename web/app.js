@@ -38,6 +38,32 @@ const calNext = document.getElementById('cal-next');
 let calYear, calMonth;
 let metDays = {};
 
+// ── CodeMirror setup ──
+const cm = CodeMirror.fromTextArea(editor, {
+  mode: 'markdown',
+  lineWrapping: true,
+  autofocus: false,
+});
+
+// Start in vim mode by default
+cm.setOption('keyMap', 'vim');
+
+// Map :w / :wq to save (vim keymap calls cm.save())
+cm.save = () => { saveFile(); };
+
+// Insert markdown (e.g. for an uploaded image) at the cursor, or at the
+// given document offset when a drop position is known.
+function insertMarkdownAtCursor(markdown, at) {
+  const cursor = at !== undefined ? cm.posFromIndex(at) : cm.getCursor();
+  const before = cm.getRange({ line: 0, ch: 0 }, cursor);
+  const insert = (before.length > 0 && !before.endsWith('\n') ? '\n' : '') + markdown + '\n';
+  cm.replaceRange(insert, cursor);
+  const end = cm.posFromIndex(cm.indexFromPos(cursor) + insert.length);
+  cm.setCursor(end);
+  cm.focus();
+}
+
+
 // ── Calendar ──
 const DAY_HEADERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -239,7 +265,7 @@ async function openFile(relPath) {
     const data = await api('GET', '/api/file?path=' + encodeURIComponent(relPath));
     currentFile = relPath;
     currentDir = relPath.includes('/') ? relPath.substring(0, relPath.lastIndexOf('/')) : '.';
-    editor.value = data.content;
+    cm.setValue(data.content);
     fileBaselineCount = countWords(data.content);
     placeholder.classList.add('hidden');
     editorWrapper.classList.remove('hidden');
@@ -248,6 +274,8 @@ async function openFile(relPath) {
     updateWordCount();
     updatePreview();
     highlightActiveFile();
+    cm.refresh();
+    cm.focus();
   } catch (e) {
     console.error('Failed to open file', e);
   }
@@ -273,7 +301,7 @@ function highlightActiveFile() {
 
 function saveFile() {
   if (!currentFile) return;
-  api('PUT', '/api/file?path=' + encodeURIComponent(currentFile), { content: editor.value })
+  api('PUT', '/api/file?path=' + encodeURIComponent(currentFile), { content: cm.getValue() })
     .then(() => loadCalendar())
     .catch(e => console.error('Failed to save', e));
 }
@@ -285,7 +313,7 @@ async function deleteFile() {
     await api('DELETE', '/api/file?path=' + encodeURIComponent(currentFile));
     currentFile = null;
     currentDir = '.';
-    editor.value = '';
+    cm.setValue('');
     fileBaselineCount = 0;
     placeholder.classList.remove('hidden');
     editorWrapper.classList.add('hidden');
@@ -312,7 +340,7 @@ async function createFile() {
 }
 
 // ── Editor ──
-editor.addEventListener('input', () => {
+cm.on('change', () => {
   updateWordCount();
   updatePreview();
   clearTimeout(saveTimer);
@@ -330,7 +358,7 @@ function stripFrontmatter(text) {
 }
 
 function newWordCount() {
-  return Math.max(0, countWords(editor.value) - fileBaselineCount);
+  return Math.max(0, countWords(cm.getValue()) - fileBaselineCount);
 }
 
 function updateWordCount() {
@@ -352,7 +380,7 @@ let mediumZoomInstance = null;
 
 function updatePreview() {
   if (previewMode || splitMode) {
-    preview.innerHTML = marked.parse(stripFrontmatter(editor.value)) || '';
+    preview.innerHTML = marked.parse(stripFrontmatter(cm.getValue())) || '';
     // Re-attach medium-zoom to preview images
     if (typeof mediumZoom !== 'undefined') {
       if (mediumZoomInstance) mediumZoomInstance.detach();
@@ -378,13 +406,14 @@ previewToggle.addEventListener('click', () => {
     splitMode = false;
     previewMode = true;
     editorWrapper.classList.remove('split');
-    editor.classList.add('hidden');
+    cm.getWrapperElement().classList.add('hidden');
     preview.classList.remove('hidden');
     previewToggle.textContent = '✎';
   } else {
     // Preview only → off
     previewMode = false;
-    editor.classList.remove('hidden');
+    cm.getWrapperElement().classList.remove('hidden');
+    cm.refresh();
     preview.classList.add('hidden');
     editorWrapper.classList.remove('split');
     previewToggle.textContent = '◐';
@@ -420,32 +449,28 @@ deleteFileBtn.addEventListener('click', deleteFile);
 newFileBtn.addEventListener('click', createFile);
 
 // ── Drag & drop images ──
-editor.addEventListener('dragover', (e) => {
+const cmWrapper = cm.getWrapperElement();
+cmWrapper.addEventListener('dragover', (e) => {
   e.preventDefault();
-  editor.classList.add('drag-over');
+  cmWrapper.classList.add('drag-over');
 });
-editor.addEventListener('dragleave', () => {
-  editor.classList.remove('drag-over');
+cmWrapper.addEventListener('dragleave', () => {
+  cmWrapper.classList.remove('drag-over');
 });
-editor.addEventListener('drop', async (e) => {
+cmWrapper.addEventListener('drop', async (e) => {
   e.preventDefault();
-  editor.classList.remove('drag-over');
+  cmWrapper.classList.remove('drag-over');
   const files = e.dataTransfer.files;
   if (!files.length) return;
+  const dropPos = cm.coordsChar({ left: e.clientX, top: e.clientY });
+  const at = cm.indexFromPos(dropPos);
   for (const file of files) {
     if (!file.type.startsWith('image/')) continue;
     try {
       const form = new FormData();
       form.append('file', file);
       const data = await api('POST', '/api/upload?dir=' + encodeURIComponent(currentDir), form);
-      // Insert markdown at cursor
-      const start = editor.selectionStart;
-      const end = editor.selectionEnd;
-      const before = editor.value.substring(0, start);
-      const after = editor.value.substring(end);
-      const insert = (before.length > 0 && !before.endsWith('\n') ? '\n' : '') + data.markdown + '\n';
-      editor.value = before + insert + after;
-      editor.selectionStart = editor.selectionEnd = start + insert.length;
+      insertMarkdownAtCursor(data.markdown, at);
       updateWordCount();
       updatePreview();
       saveFile();
@@ -471,13 +496,7 @@ editor.addEventListener('paste', async (e) => {
       const ext = item.type.split('/')[1] || 'png';
       form.append('file', file, 'pasted-' + Date.now() + '.' + ext);
       const data = await api('POST', '/api/upload?dir=' + encodeURIComponent(currentDir), form);
-      const start = editor.selectionStart;
-      const end = editor.selectionEnd;
-      const before = editor.value.substring(0, start);
-      const after = editor.value.substring(end);
-      const insert = (before.length > 0 && !before.endsWith('\n') ? '\n' : '') + data.markdown + '\n';
-      editor.value = before + insert + after;
-      editor.selectionStart = editor.selectionEnd = start + insert.length;
+      insertMarkdownAtCursor(data.markdown);
       updateWordCount();
       updatePreview();
       saveFile();
@@ -490,6 +509,10 @@ editor.addEventListener('paste', async (e) => {
 });
 
 // ── Keyboard shortcuts ──
+cm.setOption('extraKeys', {
+  'Cmd-S': saveFile,
+  'Ctrl-S': saveFile,
+});
 document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === 's') {
     e.preventDefault();

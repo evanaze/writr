@@ -278,7 +278,8 @@ body {
 .preview ul, .preview ol { padding-left: 24px; margin-bottom: 0.8em; }
 .preview hr { border: none; border-top: 1px solid var(--border); margin: 1.5em 0; }
 
-.editor-wrapper.split .editor { flex: 0 0 50%; }
+.editor-wrapper.split .editor,
+.editor-wrapper.split .CodeMirror { flex: 0 0 50%; }
 .editor-wrapper.split .preview { flex: 0 0 50%; display: block; }
 
 /* ── Progress Bar ── */
@@ -339,3 +340,72 @@ body {
 
 /* ── Drag & drop highlight ── */
 .editor.drag-over { background: rgba(90,143,212,0.05); }
+
+/* ── CodeMirror theme ── */
+.CodeMirror {
+  flex: 1;
+  height: auto;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.75;
+}
+.CodeMirror-lines { padding: 24px 0; }
+.CodeMirror pre.CodeMirror-line,
+.CodeMirror pre.CodeMirror-line-like { padding: 0 32px; }
+.CodeMirror-cursor { border-left: 1px solid var(--text); }
+.CodeMirror-selected { background: rgba(90,143,212,0.25) !important; }
+.CodeMirror-focused .CodeMirror-selected { background: rgba(90,143,212,0.3) !important; }
+.CodeMirror-placeholder { color: #555; }
+
+/* Markdown syntax colors */
+.cm-s-default .cm-header { color: #7aa7e0; }
+.cm-s-default .cm-quote { color: var(--text-muted); }
+.cm-s-default .cm-link { color: var(--accent); }
+.cm-s-default .cm-url { color: var(--accent-dim); }
+.cm-s-default .cm-string { color: #9ec98a; }
+.cm-s-default .cm-comment { color: #b5a06a; }
+.cm-s-default .cm-keyword { color: #c586c0; }
+.cm-s-default .cm-atom { color: #b5a06a; }
+.cm-s-default .cm-number { color: #b5a06a; }
+.cm-s-default .cm-tag { color: #c586c0; }
+.cm-s-default .cm-attribute { color: #7aa7e0; }
+.cm-s-default .cm-hr { color: var(--text-muted); }
+.cm-s-default .cm-variable-2 { color: var(--text); }
+.cm-s-default .cm-formatting { color: #666; }
+
+/* Vim mode */
+.cm-fat-cursor .CodeMirror-cursor,
+.cm-fat-cursor .CodeMirror-cursors {
+  background: var(--accent);
+  opacity: 0.6;
+}
+.cm-animate-fat-cursor { background: var(--accent); }
+.CodeMirror-dialog {
+  background: var(--bg-sidebar);
+  color: var(--text);
+  border-top: 1px solid var(--border);
+  padding: 4px 12px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  z-index: 10;
+}
+.CodeMirror-dialog input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 2px 6px;
+  outline: none;
+  min-width: 200px;
+}
+.CodeMirror.drag-over { background: rgba(90,143,212,0.05); }
+
+.btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}

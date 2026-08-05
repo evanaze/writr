@@ -92,7 +92,7 @@ func startServer(root string, db *sql.DB, openFile string, sidebarOpen bool) err
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Try embedded web assets first
 		path := r.URL.Path
-		if path == "/" || path == "/index.html" || path == "/style.css" || path == "/app.js" || path == "/marked.min.js" || path == "/medium-zoom.min.js" {
+		if path == "/" || path == "/index.html" || path == "/style.css" || path == "/app.js" || path == "/marked.min.js" || path == "/medium-zoom.min.js" || path == "/codemirror.min.js" || path == "/codemirror.css" || path == "/cm-vim.js" || path == "/cm-markdown.js" || path == "/cm-xml.js" {
 			webServer.ServeHTTP(w, r)
 			return
 		}
