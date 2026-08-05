@@ -86,6 +86,17 @@ func startServer(root string, db *sql.DB, openFile string, sidebarOpen bool) err
 		}
 		apiCalendarGet(w, r, db)
 	})
+	mux.HandleFunc("/api/wordcount", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			apiWordCountGet(w, r, db)
+		case "PUT":
+			apiWordCountPut(w, r, db)
+		default:
+			http.Error(w, "method not allowed", 405)
+		}
+	})
+
 
 	// Serve embedded web assets (index.html, style.css, app.js)
 	webServer := http.FileServer(http.FS(webSub))

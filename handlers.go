@@ -35,7 +35,9 @@ func apiCalendarGet(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	goalInt, _ := strconv.Atoi(goal)
 
 	days := make(map[string]bool)
+	dayCounts := make(map[string]int)
 	for _, c := range counts {
+		dayCounts[c.Date] = c.Count
 		if c.Count >= goalInt {
 			days[c.Date] = true
 		}
@@ -51,6 +53,7 @@ func apiCalendarGet(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		"year":   year,
 		"month":  month,
 		"days":   days,
+		"counts": dayCounts,
 		"streak": streak,
 	})
 }
@@ -176,14 +179,37 @@ func apiFilePut(w http.ResponseWriter, r *http.Request, root string, db *sql.DB)
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	// Record word count for the daily calendar widget
-	if strings.HasSuffix(fullPath, ".md") && db != nil {
-		text := strings.TrimSpace(req.Content)
-		count := 0
-		if text != "" {
-			count = len(strings.Fields(text))
-		}
-		recordWordCount(db, count)
+	w.WriteHeader(200)
+}
+
+// apiWordCountGet returns the persistent word count accumulated for today.
+func apiWordCountGet(w http.ResponseWriter, r *http.Request, db *sql.DB) {
+	count, err := getTodayWordCount(db)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]int{"count": count})
+}
+
+// apiWordCountPut applies a net word delta (typed or deleted) to today's count.
+func apiWordCountPut(w http.ResponseWriter, r *http.Request, db *sql.DB) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	var req struct {
+		Delta int `json:"delta"`
+	}
+	if err := json.Unmarshal(body, &req); err != nil {
+		http.Error(w, "invalid json", 400)
+		return
+	}
+	if err := recordWordDelta(db, req.Delta); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
 	}
 	w.WriteHeader(200)
 }

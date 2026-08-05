@@ -6,6 +6,9 @@ let previewMode = false;
 let splitMode = false;
 let saveTimer = null;
 let fileBaselineCount = 0;
+let dailyWordCount = 0;   // persistent word count for today (from DB)
+let lastFileWords = 0;    // word count of current file at last change
+let wordCountTimer = null;
 
 // ── DOM refs ──
 const sidebar = document.getElementById('sidebar');
@@ -37,6 +40,7 @@ const calNext = document.getElementById('cal-next');
 // Calendar state (displayed month)
 let calYear, calMonth;
 let metDays = {};
+let dayCounts = {};
 
 // ── CodeMirror setup ──
 const cm = CodeMirror.fromTextArea(editor, {
@@ -77,6 +81,7 @@ async function loadCalendar() {
   try {
     const data = await api('GET', `/api/calendar?year=${calYear}&month=${calMonth}`);
     metDays = data.days || {};
+    dayCounts = data.counts || {};
     streakCounter.textContent = `🔥 ${data.streak}-day streak`;
     renderCalendar();
   } catch (e) {
@@ -118,6 +123,8 @@ function renderCalendar() {
     if (metDays[dateStr]) {
       el.classList.add('met');
     }
+    const n = dayCounts[dateStr] !== undefined ? dayCounts[dateStr] : 0;
+    el.title = `${MONTH_NAMES[calMonth - 1]} ${d}, ${calYear}: ${n} ${n === 1 ? 'word' : 'words'}`;
     if (thisMonth && dateStr === todayStr) {
       el.classList.add('today');
     }
@@ -151,6 +158,7 @@ async function init() {
   }
 
   await loadGoal();
+  await loadWordCount();
   await loadTree();
   await loadCalendar();
 
@@ -265,8 +273,11 @@ async function openFile(relPath) {
     const data = await api('GET', '/api/file?path=' + encodeURIComponent(relPath));
     currentFile = relPath;
     currentDir = relPath.includes('/') ? relPath.substring(0, relPath.lastIndexOf('/')) : '.';
-    cm.setValue(data.content);
+    // Set baseline BEFORE setValue so the change event it fires computes a
+    // delta of 0 (no spurious word-count change when switching files).
     fileBaselineCount = countWords(data.content);
+    lastFileWords = fileBaselineCount;
+    cm.setValue(data.content);
     placeholder.classList.add('hidden');
     editorWrapper.classList.remove('hidden');
     currentFileEl.textContent = relPath;
@@ -313,8 +324,10 @@ async function deleteFile() {
     await api('DELETE', '/api/file?path=' + encodeURIComponent(currentFile));
     currentFile = null;
     currentDir = '.';
-    cm.setValue('');
+    // Reset baseline before setValue to avoid spurious negative delta.
     fileBaselineCount = 0;
+    lastFileWords = 0;
+    cm.setValue('');
     placeholder.classList.remove('hidden');
     editorWrapper.classList.add('hidden');
     currentFileEl.textContent = '';
@@ -341,7 +354,19 @@ async function createFile() {
 
 // ── Editor ──
 cm.on('change', () => {
-  updateWordCount();
+  // Delta of words in the current file since the last change
+  const currentWords = countWords(cm.getValue());
+  const delta = currentWords - lastFileWords;
+  lastFileWords = currentWords;
+  if (delta !== 0) {
+    dailyWordCount = Math.max(0, dailyWordCount + delta);
+    updateWordCount();
+    // Persist the delta to the DB (debounced)
+    clearTimeout(wordCountTimer);
+    wordCountTimer = setTimeout(() => {
+      api('PUT', '/api/wordcount', { delta }).catch(e => console.error('Failed to persist word count', e));
+    }, 300);
+  }
   updatePreview();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(saveFile, 500);
@@ -358,13 +383,25 @@ function stripFrontmatter(text) {
 }
 
 function newWordCount() {
-  return Math.max(0, countWords(cm.getValue()) - fileBaselineCount);
+  return dailyWordCount;
 }
 
 function updateWordCount() {
   const count = newWordCount();
   wordCountEl.textContent = count;
   updateProgress();
+}
+
+// Load the persistent daily word count from the database on startup so the
+// counter survives app restarts.
+async function loadWordCount() {
+  try {
+    const data = await api('GET', '/api/wordcount');
+    dailyWordCount = data.count || 0;
+    updateWordCount();
+  } catch (e) {
+    console.error('Failed to load word count', e);
+  }
 }
 
 function updateProgress() {

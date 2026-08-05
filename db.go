@@ -67,11 +67,31 @@ func setGoal(db *sql.DB, goal string) error {
 	return err
 }
 
-func recordWordCount(db *sql.DB, count int) error {
+// recordWordDelta accumulates a net change in words (typed or deleted) into the
+// daily word count. Deltas can be negative (deletions); the running total is
+// clamped at 0. This keeps the count persistent across app restarts.
+func recordWordDelta(db *sql.DB, delta int) error {
+	if delta == 0 {
+		return nil
+	}
 	date := time.Now().Format("2006-01-02")
-	_, err := db.Exec(`INSERT INTO word_counts (date, count) VALUES (?, ?)
-		ON CONFLICT(date) DO UPDATE SET count = MAX(count, excluded.count)`, date, count)
+	_, err := db.Exec(`INSERT INTO word_counts (date, count) VALUES (?, MAX(0, ?))
+		ON CONFLICT(date) DO UPDATE SET count = MAX(0, count + ?)`, date, delta, delta)
 	return err
+}
+
+// getTodayWordCount returns the persistent word count accumulated for today.
+func getTodayWordCount(db *sql.DB) (int, error) {
+	date := time.Now().Format("2006-01-02")
+	var count int
+	err := db.QueryRow(`SELECT count FROM word_counts WHERE date = ?`, date).Scan(&count)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func getWordCounts(db *sql.DB, year int, month int) ([]struct {

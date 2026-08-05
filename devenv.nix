@@ -7,7 +7,7 @@
   };
 
   # https://devenv.sh/scripts/
-  scripts.build.exec = "go build -o writr .";
+  scripts.build.exec = "rm writr && go build -o writr .";
 
   # https://devenv.sh/tests/
   enterTest = "CGO_ENABLED=0 go test ./...";
